@@ -1,0 +1,14 @@
+include card.pug
+doctype html
+html(lang="en")
+  head
+    meta(charset='utf-8')
+    title #{app_name}
+    script(defer, src="https://unpkg.com/alpinejs@3.9.2/dist/cdn.min.js")
+    link(rel="stylesheet", href="styles.css")
+    script(type="module", src="app.js")
+  body
+    div.flex.flex-col.h-screen
+      header.min-w-100.h-auto
+        include navigation.pug
+      block content

@@ -1,0 +1,346 @@
+#+TITLE: An Analysis of Rolls
+#+AUTHOR: Adam Thrash
+#+PROPERTY: header-args :mkdirp yes :var rolls="/Users/adamthrash/Dropbox/DiscordChatExporter.CLI/rolls.tsv"
+
+* Data Cleanup and Export
+
+- The raw data is read in and split on CRLFs (=\r\n=), since the Discord extracter uses =\n= inside one of the columns.
+- Only messages from the RPG Sessions bot after the starting date are retained.
+- For now, only messages containing "Success" or "Failure" are retained.
+  - Commented code describes the basics of keeping Light/Dark Side story point expenditure.
+- Roll data is cleaned up.
+- Category is assigned based on the presence of "Initiative" or "|".
+- A binary success/failure status is assigned based on 1+ Successes.
+#+NAME: clean_data
+#+begin_src python :results value file :file src/report.json :colnames '("Date" "Character" "Skill" "Result" "Category") :var return_json="True"
+import re
+import time
+import json
+
+return_json = False if return_json == "False" else True
+                        
+raw_data = []
+roll_data = []
+starting_date = time.strptime("27-Aug-21 08:31 PM", "%d-%b-%y %I:%M %p")
+with open(rolls, newline='\r\n') as roll_file:
+    for line in roll_file:
+        raw_data.append(line.strip("\r\n"))
+
+for index, line in enumerate(raw_data):
+    data = [element for element in line.strip("\r\n").split("\t") if len(element) > 0][0:4]
+    if len(data) == 4 and data[1] == "RPG Sessions#6136" and time.strptime(data[2], "%d-%b-%y %I:%M %p") > starting_date:
+        roll_ID = data[0]
+        author = data[1]
+        date = data[2]
+        content = data[3].strip('"').replace("\n", "\t").replace(": ", "\t").replace(u'\u200b', "")
+        category = "invalid"
+        if ("Success" in content or "Failure" in content) and "@" not in content:
+            dice = raw_data[index - 1].split("\t")[3].strip(":").replace(" ", "").split("::")
+            #if len(dice) == 1:
+             #   print(content, dice)
+            content = [element for element in content.split("\t") if element != "Rolled from Game Table"]
+            if len(content) > 2 and "|" not in "\t".join(content):
+                content[2] = re.sub(r"Piloting[ -]+([SP])", r"Piloting-\1", content[2])
+                content[2] = re.sub(r"\(.*\)", "", content[2])
+                content[2] = re.sub(r" for.*brain", "", content[2])
+                content[2] = re.sub(r" \(.*\)", "", content[2].replace(" - ", "-"))
+                content[2] = content[2].replace("Outer Rim", "Outer-Rim")
+                content[2] = content[2].replace("Fear check", "Fear-check")
+                content[2] = content[2].strip()
+                sanity_check = set(content[2].replace(" - ", "-").split(" "))
+                if len(sanity_check) == 1:
+                    category = "skill"
+                elif len(sanity_check) == 2 and "Initiative" in sanity_check:
+                    category = "initiative"
+                    content[2] = content[2].replace("Initiative ", "")
+            elif "|" in "\t".join(content):
+                category = "combat"
+                content = content[0:2]
+                content.append("combat")
+            if category != "invalid":
+                character = re.sub("\?+", "?", content[0])
+                skill = set(content[2].split(" ")).pop()
+                result = content[1]
+                binary_result = result.split(",")[0]
+                passed = "success" if bool(re.match(r"[1-9][0-9]* S", binary_result)) else "failure"
+                content = [element.strip() for element in [date, character, skill, passed, category]]#, result]])
+                if return_json:
+                    content = {"date": content[0], "character": content[1], "skill": content[2], "result": content[3], "category": content[4]}
+                roll_data.append(content)
+if return_json:
+    return(json.dumps(roll_data))
+else:
+    return(roll_data)
+
+                # print([date, category, character, result, skill])
+
+                    # print(content[2].replace(r"Piloting - ", "Piloting-").replace("Piloting ", "Piloting-"))
+                #     = content[2].replace(r"Piloting[ -]+", "Piloting-")
+                # if len(test) != 1 and "Initiative" not in test:
+                #     print(roll_date, content[2])
+        #     # and "Critical Injury" not in content and "Unable to roll dice" not in content and " Destiny Points" not in content:
+        #     if "Used" in content and ("Lightside" in content or "Darkside" in content):
+        #         pass#print(content)
+        #     el:
+        #         print(content)
+                # content[0] == '"' or
+#+end_src
+
+#+RESULTS: clean_data
+[[file:src/report.json]]
+
+* Environment Configuration
+** Yarn
+    #+begin_src shell :tangle setup.sh
+yarn set version berry
+yarn init
+yarn add --dev parcel @parcel/config-default @parcel/transformer-pug tailwindcss postcss autoprefixer
+yarn add alpinejs
+#+end_src
+
+#+begin_src yaml :tangle .yarnrc.yml
+nodeLinker: node-modules
+#+end_src
+
+** Package
+
+#+begin_src json :tangle package.json
+{
+  "name": "RollReport",
+  "packageManager": "yarn@3.2.0",
+  "browserslist": "> 0.5%, last 2 versions, not dead",
+  "source": "src/index.pug",
+  "scripts": {
+    "start": "parcel -p 3000",
+    "build": "parcel build"
+  },
+  "devDependencies": {
+    "@parcel/config-default": "^2.4.0",
+    "@parcel/transformer-pug": "2.4.0",
+    "autoprefixer": "^10.4.4",
+    "parcel": "^2.4.0",
+    "postcss": "^8.4.12",
+    "tailwindcss": "^3.0.23"
+  },
+  "dependencies": {
+    "alpinejs": "^3.9.2"
+  }
+}
+#+end_src
+
+** Parcel
+
+    #+begin_src json :tangle .parcelrc
+{
+  "extends": "@parcel/config-default",
+  "transformers": {
+    "*.pug": ["...", "@parcel/transformer-pug"]
+  }
+}
+#+end_src
+
+** PUG
+#+begin_src json :tangle .pugrc
+{
+  "locals": {
+    "app_name": "RollReport"
+  }
+}
+#+end_src
+
+** Tailwind CSS
+#+begin_src json :tangle .postcssrc
+{
+  "plugins": {
+    "tailwindcss": {}
+  }
+}
+#+end_src
+
+These colors were generated by [[https://www.tailwindshades.com/#color=348%2C60.3448275862069%2C22.745098039215687&step-up=15&step-down=3&hue-shift=0&name=msstate&overrides=e30%3D][this tool]].
+
+#+begin_src javascript :tangle tailwind.config.js
+module.exports = {
+  content: ["./src/*.{html,js,pug}"],
+  theme: {
+    extend: {
+      colors: {
+        'msstate': {
+          DEFAULT: '#5D1725',
+          '50': '#F5D7DD',
+          '100': '#EEB8C3',
+          '200': '#DE7B8F',
+          '300': '#CF3E5B',
+          '400': '#9A263D',
+          '500': '#5D1725',
+          '600': '#511420',
+          '700': '#44111B',
+          '800': '#380E16',
+          '900': '#2C0B11'
+        }
+      }
+    },
+  },
+  variants: {},
+  plugins: [],
+};
+#+end_src
+
+* PUG
+
+** Layout
+#+begin_#+NAME: layout
+#+begin_src pug :tangle src/layout.pug
+include card.pug
+doctype html
+html(lang="en")
+  head
+    meta(charset='utf-8')
+    title #{app_name}
+    script(defer, src="https://unpkg.com/alpinejs@3.9.2/dist/cdn.min.js")
+    link(rel="stylesheet", href="styles.css")
+    script(type="module", src="app.js")
+  body
+    div.flex.flex-col.h-screen
+      header.min-w-100.h-auto
+        include navigation.pug
+      block content
+          #+end_src
+
+#+NAME: navigation
+#+begin_src pug :tangle src/navigation.pug
+nav(class="min-w-100 p-4 bg-slate-800 text-white")
+    h1(class="text-2xl font-bold"): a(href="#") #{app_name}
+    #+end_src
+
+** Mixins
+#+NAME: card
+#+begin_src pug :tangle src/card.pug
+mixin card(title, background="bg-blue-100", header_color="text-gray-900", text_color="text-gray-900")
+  //, {background="bg-blue=100", color="text-gray-900"})
+  div(class!=attributes.class class=background class="rounded-md p-2 border border-gray-200 shadow-md")
+    h1(class=header_color class="mb-2 text-2xl font-bold")= title
+    if block
+      block
+#+end_src
+
+** Pages
+#+begin_#+NAME: index
+#+begin_src pug :tangle src/index.pug
+extends layout.pug
+
+block content
+  section(class="grid grid-cols-4 gap-4 h-full min-w-full p-4")
+    +card("Set Up", "bg-msstate-100", "text-white", "text-white")
+      p Dummy text that represents general settings.
+    +card("GWAS")
+      p Dummy text that represents GWAS settings.
+    +card("Linkage Disequilibrium")
+      p Dummy text that represents GWAS settings.
+    +card("Annotations & Pathways")
+      p Dummy text that represents GWAS settings.
+    #+end_src
+
+* CSS
+
+#+begin_src css :tangle src/styles.css
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+#+end_src
+
+* Javascript
+
+#+begin_src javascript :tangle src/app.js
+// import table from './report.json';
+// import Alpine from 'alpinejs';
+// window.Alpine = Alpine;
+
+// Alpine.store('rows', () => {return [...table]})
+// Alpine.store('columns', () => Object.keys(table[0]))
+// Alpine.start();
+#+end_src
+
+* HTML                                                          :#superseded:
+:PROPERTIES:
+:header-args: :tangle no
+:END:
+
+#+begin_src html :noweb yes
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8"/>
+    <title>An Analysis of Rolls</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script type="module" src="app.js"></script
+   </head>
+  <body>
+    <section class="container p-4 flex gap-4">
+      <<table>>
+      <section>
+        <<stacked-bars>>
+      </section>
+    </section>
+  </body>
+</html>
+#+end_src
+** Components
+
+#+NAME: table
+#+begin_src html
+<table>
+  <thead>
+    <tr x-data="{columns: $store.columns}" class="bg-indigo-600 text-white text-left">
+      <template x-for="column in columns">
+        <template x-if="column != 'result'">
+          <th class="p-2" x-text="column"></th>
+        </template>
+      </template>
+    </tr>
+  </thead>
+    <tbody x-data="{rows: $store.rows}">
+      <template x-for="row in rows">
+        <template x-if="row != 'result'">
+          <tr class="p-2" :class="row.result === 'success' ? 'bg-green-300' : 'bg-red-300'">
+            <!-- <td x-text="row.character"></td> -->
+            <template x-for="column in $store.columns">
+              <template x-if="column !== 'result'">
+                <td class="p-2 whitespace-nowrap" x-text="row[column]"></td>
+              </template>
+            </template>
+          </tr>
+        </template>
+      </template>
+    </tbody>
+</table>
+#+end_src
+
+#+NAME: stacked-bars
+#+begin_src html
+<table>
+  <thead>
+    <tr x-data="{columns: $store.columns}" class="bg-indigo-600 text-white text-left">
+      <template x-for="column in columns">
+        <template x-if="column != 'result'">
+          <th class="p-2" x-text="column"></th>
+        </template>
+      </template>
+    </tr>
+  </thead>
+    <tbody x-data="{rows: $store.rows}">
+      <template x-for="row in rows">
+        <template x-if="row != 'result'">
+          <tr class="p-2" :class="row.result === 'success' ? 'bg-green-300' : 'bg-red-300'">
+            <!-- <td x-text="row.character"></td> -->
+            <template x-for="column in $store.columns">
+              <template x-if="column !== 'result'">
+                <td class="p-2 whitespace-nowrap" x-text="row[column]"></td>
+              </template>
+            </template>
+          </tr>
+        </template>
+      </template>
+    </tbody>
+</table>
+#+end_src

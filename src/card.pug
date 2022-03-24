@@ -1,0 +1,6 @@
+mixin card(title, background="bg-blue-100", header_color="text-gray-900", text_color="text-gray-900")
+  //, {background="bg-blue=100", color="text-gray-900"})
+  div(class!=attributes.class class=background class="rounded-md p-2 border border-gray-200 shadow-md")
+    h1(class=header_color class="mb-2 text-2xl font-bold")= title
+    if block
+      block
