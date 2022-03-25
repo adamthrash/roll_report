@@ -1,4 +1,6 @@
 include card.pug
+include table.pug
+include bar_chart.pug
 doctype html
 html(lang="en")
   head
@@ -7,8 +9,9 @@ html(lang="en")
     script(defer, src="https://unpkg.com/alpinejs@3.9.2/dist/cdn.min.js")
     link(rel="stylesheet", href="styles.css")
     script(type="module", src="app.js")
+    script(src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.1/chart.min.js")
   body
-    div.flex.flex-col.h-screen
+    div.flex.flex-col.min-h-screen
       header.min-w-100.h-auto
         include navigation.pug
       block content

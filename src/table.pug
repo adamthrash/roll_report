@@ -1,0 +1,14 @@
+mixin table(data, excludes=[])
+  div.inline-block.rounded-lg.border.shadow.relative.overflow-x-auto
+    table.w-full
+      thead
+        tr(class="bg-indigo-600 text-white text-left")
+          each val, key in data[0]
+            unless excludes.includes(key)
+              th.p-2= key
+      tbody
+        each row in data
+          tr(class={"bg-green-200": row['result'] === 'success'} class={"bg-red-200": row['result'] === "failure"})
+            each val, key in data[0]
+              unless excludes.includes(key)
+                td.p-2.whitespace-nowrap= row[key]

@@ -111,7 +111,7 @@ nodeLinker: node-modules
   "browserslist": "> 0.5%, last 2 versions, not dead",
   "source": "src/index.pug",
   "scripts": {
-    "start": "parcel -p 3000",
+    "start": "parcel -p 3000 src/index.pug",
     "build": "parcel build"
   },
   "devDependencies": {
@@ -140,12 +140,22 @@ nodeLinker: node-modules
 #+end_src
 
 ** PUG
-#+begin_src json :tangle .pugrc
+#+begin_src json :tangle no
 {
   "locals": {
     "app_name": "RollReport"
   }
 }
+#+end_src
+
+#+begin_src javascript :tangle pug.config.js
+const table = require("./src/report.json");
+module.exports = {
+  "locals": {
+    "app_name": "RollReport",
+    "table": table
+  }
+};
 #+end_src
 
 ** Tailwind CSS
@@ -187,11 +197,12 @@ module.exports = {
 #+end_src
 
 * PUG
-
 ** Layout
 #+begin_#+NAME: layout
 #+begin_src pug :tangle src/layout.pug
 include card.pug
+include table.pug
+include bar_chart.pug
 doctype html
 html(lang="en")
   head
@@ -200,8 +211,9 @@ html(lang="en")
     script(defer, src="https://unpkg.com/alpinejs@3.9.2/dist/cdn.min.js")
     link(rel="stylesheet", href="styles.css")
     script(type="module", src="app.js")
+    script(src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.1/chart.min.js")
   body
-    div.flex.flex-col.h-screen
+    div.flex.flex-col.min-h-screen
       header.min-w-100.h-auto
         include navigation.pug
       block content
@@ -224,21 +236,99 @@ mixin card(title, background="bg-blue-100", header_color="text-gray-900", text_c
       block
 #+end_src
 
+#+NAME: table
+#+begin_src pug :tangle src/table.pug
+mixin table(data, excludes=[])
+  div.inline-block.rounded-lg.border.shadow.relative.overflow-x-auto
+    table.w-full
+      thead
+        tr(class="bg-indigo-600 text-white text-left")
+          each val, key in data[0]
+            unless excludes.includes(key)
+              th.p-2= key
+      tbody
+        each row in data
+          tr(class={"bg-green-200": row['result'] === 'success'} class={"bg-red-200": row['result'] === "failure"})
+            each val, key in data[0]
+              unless excludes.includes(key)
+                td.p-2.whitespace-nowrap= row[key]
+#+end_src
+
+#+NAME: bar-chart
+#+begin_src pug :tangle src/bar_chart.pug
+mixin bar_chart(labels, data, label, id="test")
+  div(id=id, class="w-full")
+    canvas.inline-block.rounded-lg.border.shadow.relative.overflow-x-auto
+    script.
+      const label = "#{label}"
+      const labels = !{JSON.stringify(labels)}
+      const data = !{JSON.stringify(data)}
+      console.log("labels", labels)
+      console.log("data", data)
+      const div = document.getElementById("#{id}");
+      const canvas = div.firstChild
+      canvas.width = div.offsetWidth;
+      const ctx = canvas.getContext('2d');
+      const myChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: label,
+            data: data,
+            backgroundColor: [
+              'rgba(255, 99, 132, 0.2)',
+              'rgba(54, 162, 235, 0.2)',
+              'rgba(255, 206, 86, 0.2)',
+              'rgba(75, 192, 192, 0.2)',
+              'rgba(153, 102, 255, 0.2)',
+              'rgba(255, 159, 64, 0.2)'
+            ],
+            borderColor: [
+              'rgba(255, 99, 132, 1)',
+              'rgba(54, 162, 235, 1)',
+              'rgba(255, 206, 86, 1)',
+              'rgba(75, 192, 192, 1)',
+              'rgba(153, 102, 255, 1)',
+              'rgba(255, 159, 64, 1)'
+            ],
+            borderWidth: 1
+          }]
+        },
+        options: {
+          scales: {
+            y: {
+              beginAtZero: true
+            }
+          }
+        }
+      });
+      #+end_src
 ** Pages
 #+begin_#+NAME: index
 #+begin_src pug :tangle src/index.pug
 extends layout.pug
 
 block content
-  section(class="grid grid-cols-4 gap-4 h-full min-w-full p-4")
-    +card("Set Up", "bg-msstate-100", "text-white", "text-white")
-      p Dummy text that represents general settings.
-    +card("GWAS")
-      p Dummy text that represents GWAS settings.
-    +card("Linkage Disequilibrium")
-      p Dummy text that represents GWAS settings.
-    +card("Annotations & Pathways")
-      p Dummy text that represents GWAS settings.
+
+  section.grid.grid-cols-2.gap-4.min-h-screen.min-w-full.p-4
+    +table(table, ['result'])
+    - var labels = [...new Set(table.map(row => row.character))];
+    - 
+      var success = labels.map((character_name) => {return table.filter(row => (row.character === character_name && row.result === "success")).length})
+      var failure = labels.map((character_name) => {return table.filter(row => (row.character === character_name && row.result === "failure")).length})
+      var percent_success = success.map((total_success, index) => { return Math.floor(100*total_success / (total_success + failure[index])) })
+    +bar_chart(labels, percent_success, "Successful Rolls (%)")(id="line" class="shadow" width="100%")
+  //h1(x-data="{ message: 'I ❤️ Alpine' }" x-text="message")
+  //- section(class="grid grid-cols-4 gap-4 h-full min-w-full p-4")
+  //-   +card("Set Up", "bg-msstate-100", "text-white", "text-white")
+  //-     p Dummy text that represents general settings.
+  //-   +card("GWAS")
+  //-     p Dummy text that represents GWAS settings.
+  //-   +card("Linkage Disequilibrium")
+  //-     p Dummy text that represents GWAS settings.
+  //-   +card("Annotations & Pathways")
+  //-     p Dummy text that represents GWAS settings.
     #+end_src
 
 * CSS
@@ -253,6 +343,8 @@ block content
 
 #+begin_src javascript :tangle src/app.js
 // import table from './report.json';
+// console.log(table)
+// console.log(table.length)
 // import Alpine from 'alpinejs';
 // window.Alpine = Alpine;
 

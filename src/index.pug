@@ -1,12 +1,22 @@
 extends layout.pug
 
 block content
-  section(class="grid grid-cols-4 gap-4 h-full min-w-full p-4")
-    +card("Set Up", "bg-msstate-100", "text-white", "text-white")
-      p Dummy text that represents general settings.
-    +card("GWAS")
-      p Dummy text that represents GWAS settings.
-    +card("Linkage Disequilibrium")
-      p Dummy text that represents GWAS settings.
-    +card("Annotations & Pathways")
-      p Dummy text that represents GWAS settings.
+
+  section.grid.grid-cols-2.gap-4.min-h-screen.min-w-full.p-4
+    +table(table, ['result'])
+    - var labels = [...new Set(table.map(row => row.character))];
+    - 
+      var success = labels.map((character_name) => {return table.filter(row => (row.character === character_name && row.result === "success")).length})
+      var failure = labels.map((character_name) => {return table.filter(row => (row.character === character_name && row.result === "failure")).length})
+      var percent_success = success.map((total_success, index) => { return Math.floor(100*total_success / (total_success + failure[index])) })
+    +bar_chart(labels, percent_success, "Successful Rolls (%)")(id="line" class="shadow" width="100%")
+  //h1(x-data="{ message: 'I ❤️ Alpine' }" x-text="message")
+  //- section(class="grid grid-cols-4 gap-4 h-full min-w-full p-4")
+  //-   +card("Set Up", "bg-msstate-100", "text-white", "text-white")
+  //-     p Dummy text that represents general settings.
+  //-   +card("GWAS")
+  //-     p Dummy text that represents GWAS settings.
+  //-   +card("Linkage Disequilibrium")
+  //-     p Dummy text that represents GWAS settings.
+  //-   +card("Annotations & Pathways")
+  //-     p Dummy text that represents GWAS settings.
